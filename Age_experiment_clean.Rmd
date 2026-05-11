@@ -214,7 +214,6 @@ chisq.test(table(comp_id$missing_group, comp_id$Ethnicity))
 library(mice)
 
 ###harm perception
-# ---- variables (add credibility if you want it imputed) ----
 vars <- c("ResponseId","harm_score_factor","Condition","Sex","Ethnicity","Age",
           "white","asian","black","multi","other",
           "sm_freq_use","infl_expos","sub_30dayuse","harm_pretest_binary",
@@ -229,7 +228,7 @@ meth["ResponseId"]       <- ""   # don't impute ID
 meth["Condition"]       <- ""   # randomized; do not impute
 meth["harm_score_factor"]<- ""   # outcome; do not impute (leave missing as-is)
 
-# Only these have missingness (per you), but setting explicitly is fine:
+# Only these have missingness:
 meth["Sex"]                 <- "logreg"    # if binary; else use "polyreg"
 meth["Ethnicity"]           <- "logreg"    # if binary; else use "polyreg"
 meth["sm_freq_use"]         <- "polyreg"   # 3+ categories (unordered)
