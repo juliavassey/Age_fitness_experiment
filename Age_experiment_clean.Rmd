@@ -13,7 +13,7 @@ editor_options:
 
 #Table 1:
 library(chisq.posthoc.test)
-t2 = xtabs( ~ sub_30dayuse + Condition, age_experiment, addNA = TRUE)
+t2 = xtabs( ~ sub_30dayuse + Condition, data_age_experiment, addNA = TRUE)
 chisq.test(t2)
 chisq.posthoc.test(t2)
 
