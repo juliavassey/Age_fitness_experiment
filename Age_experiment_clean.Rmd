@@ -18,9 +18,9 @@ chisq.test(t2)
 chisq.posthoc.test(t2)
 
 #data in long format
-data_harm = read.csv("/harm_perception.csv")
-data_appeal = read.csv("/appeal_perception.csv")
-data_susceptibilty = read.csv("/susceptibilty.csv")
+data_harm = read.csv("/data_harm.csv")
+data_appeal = read.csv("/data_appeal.csv")
+data_susceptibilty = read.csv("/data_susceptibilty.csv")
 
 #main variables:
 #harm_score_factor = harm perception outcome
