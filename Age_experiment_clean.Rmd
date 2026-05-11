@@ -1,0 +1,389 @@
+---
+title: "Age_experiment_clean"
+output: html_document
+date: "2026-05-04"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+
+#data_age_experiment = read.csv("/data_age_experiment.csv")#original 
+
+
+#Table 1:
+library(chisq.posthoc.test)
+t2 = xtabs( ~ sub_30dayuse + Condition, age_experiment, addNA = TRUE)
+chisq.test(t2)
+chisq.posthoc.test(t2)
+
+#data in long format
+data_harm = read.csv("/harm_perception.csv")
+data_appeal = read.csv("/appeal_perception.csv")
+data_susceptibilty = read.csv("/susceptibilty.csv")
+
+#main variables:
+#harm_score_factor = harm perception outcome
+#vape_appeal_t3 = appeal perceptions outcome
+#suscept_total = suspcetibility outcome
+#Condition - experimental conditions; "Old Control" = reference. 
+
+#covariates:
+#sm_freq_use = frequent use of Instagram and/or TikTok
+#infl_expos = exposure to influencer e-cigsrette-related posts
+#sub_30dayuse = past-month substance use
+#harm_pretest_binary = e-cigarette harm perceptions measured before the experiment 
+#vape_appeal_pretest_sum = e-cigarette appeal perceptions measured before the experiment 
+#suscept_pretest = susceptibility to e-cigarette use measured before the experiment 
+
+##Table 2
+library(ordinal)
+
+#harm perceptions of e-cigarettes - main effects model
+model1 <- ordinal::clmm(
+  harm_score_factor ~  Condition + Sex + Ethnicity + Age  + white + asian + black + multi + other + sm_freq_use + infl_expos + sub_30dayuse + harm_pretest_binary + (1 | ResponseId),
+  data = data_harm,
+  link = "logit",
+  Hess = TRUE,
+ control = ordinal::clmm.control(
+    method  = "nlminb",
+    maxIter = 5000
+  )
+)
+summary(model1)
+
+##produce adjusted odds ratios, p-values and adjusted p-values, use for all the models
+library(broom.mixed)
+t1 = tidy(model1,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+
+p <- t1$p.value
+t1$adjust.pvalue <- p.adjust(p, method = "BH")
+t1$adjust.pvalue = round(t1$adjust.pvalue,3)
+t1$p.value = round(t1$p.value,3)
+print(t1, n=50)
+
+
+#harm perceptions of e-cigarettes - interaction effects model
+model1a <- ordinal::clmm(
+  harm_score_factor ~  Condition*credibility_median_rescale + Sex + Ethnicity + Age  + white + asian + black + multi + other + sm_freq_use + infl_expos + sub_30dayuse + harm_pretest_binary + (1 | ResponseId),
+  data = data_harm,
+  link = "logit",
+  Hess = TRUE,
+ control = ordinal::clmm.control(
+    method  = "nlminb",
+    maxIter = 5000
+  )
+)
+summary(model1a)
+
+
+#appeal perceptions of e-cigarettes - main effects model
+model2 <- clmm(
+  vape_appeal_t3 ~  Condition  + Sex1 + Ethnicity1 + Age  + white + asian + black + multi + other  +  sm_freq_use + infl_expos + sub_30dayuse +  vape_appeal_pretest_sum + (1 | ResponseId),
+  data = data_appeal,
+  link = "logit",
+  Hess = TRUE,
+control = clmm.control(
+    method  = "nlminb",
+    maxIter = 5000
+))
+summary(model2)
+
+
+#appeal perceptions of e-cigarettes - interaction effects model
+model2a <- clmm(
+  vape_appeal_t3 ~  Condition*credibility_median_rescale  + Sex1 + Ethnicity1 + Age  + white + asian + black + multi + other  +  sm_freq_use + infl_expos + sub_30dayuse +  vape_appeal_pretest_sum + (1 | ResponseId),
+  data = data_appeal,
+  link = "logit",
+  Hess = TRUE,
+control = clmm.control(
+    method  = "nlminb",
+    maxIter = 5000
+))
+summary(model2a)
+
+
+
+#susceptibility to use e-cigarettes - main effects model
+model3 <- lme4::glmer(
+   suscept_total ~ Condition + Sex + Ethnicity + Age  + white + asian + black + multi + other  + infl_expos + sm_freq_use + cigcan_30dayuse + suscept_pretest + (1 | ResponseId),
+  data = data_susceptibilty,
+  family = binomial,
+ # control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e5)
+control = glmerControl(optimizer = "nloptwrap", optCtrl = list(maxfun = 3e5),
+                  calc.derivs = FALSE     )
+)
+summary(model3)#
+
+
+#susceptibility to use e-cigarettes - interaction effects model
+model3a <- lme4::glmer(
+   suscept_total ~ Condition*credibility_median_rescale + Sex + Ethnicity + Age  + white + asian + black + multi + other  + infl_expos + sm_freq_use + cigcan_30dayuse + suscept_pretest + (1 | ResponseId),
+  data = data_susceptibilty,
+  family = binomial,
+ # control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e5)
+control = glmerControl(optimizer = "nloptwrap", optCtrl = list(maxfun = 3e5),
+                  calc.derivs = FALSE     )
+)
+summary(model3a)#
+
+
+t1 = tidy(model3a,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+
+p <- t1$p.value
+t1$adjust.pvalue <- p.adjust(p, method = "BH")
+t1$adjust.pvalue = round(t1$adjust.pvalue,3)
+t1$p.value = round(t1$p.value,3)
+print(t1, n=30)
+
+
+#Supplementary table 2
+
+###compare AORs
+# Get estimated marginal means for experiment Condition
+emm <- emmeans(model, ~ Condition, rg.limit = 20000)
+
+# Pairwise comparisons for all condition combinations
+pairs(emm, adjust = "none") 
+summary(model)
+
+
+#Supplementary tables 3, 4, 5
+
+#ASSESS COMPLETE VERSUS MISSING CASSES 
+library(dplyr)
+
+# select variables from datasets in long format for each outcome: harm perceptoins, appeal and susceptibility
+model_vars <- c("harm_score_factor","Condition","Sex","Ethnicity","Age",
+                "white","asian","black","multi","other",
+                "sm_freq_use","infl_expos","sub_30dayuse","harm_pretest_binary")
+
+model_vars <- c("vape_appeal_t3","Condition","Sex","Ethnicity","Age",
+                "white","asian","black","multi","other",
+                "sm_freq_use","infl_expos","sub_30dayuse","vape_appeal_pretest_sum")
+
+model_vars <- c("suscept_total","Condition","Sex","Ethnicity","Age",
+                "white","asian","black","multi","other",
+                "sm_freq_use","infl_expos","cigcan_30dayuse","suscept_pretest")
+
+
+# 1) Per-ID: how many COMPLETE rows (i.e., rows with NO NA in any model var)
+miss_by_id <- data_harm  %>%
+  mutate(row_complete = if_all(all_of(model_vars), ~ !is.na(.))) %>%
+  group_by(ResponseId) %>%
+  summarise(
+    n_rows = n(),
+    n_complete_rows = sum(row_complete),
+    any_missing = n_complete_rows < n_rows,          # has at least one incomplete row
+    included_in_clmm = n_complete_rows > 0,          # contributes ≥1 row to CLMM
+    missing_group = if_else(included_in_clmm, "complete", "missing"),  # 674 vs 26
+    .groups = "drop"
+  )
+
+# 2) One row per participant for baseline covariates (no outcome needed here)
+library(dplyr)
+baseline_covars <- data_harm %>%
+  select(ResponseId, harm_score_factor, Condition, Sex, Ethnicity, Age, white, asian, black, multi, other,
+         sm_freq_use, infl_expos, sub_30dayuse, harm_pretest_binary, credibility_median_rescale) %>%
+  distinct(ResponseId, .keep_all = TRUE)
+
+baseline_covars <- data_appeal %>%
+  select(ResponseId, vape_appeal_t3, Condition, Sex, Ethnicity, Age, white, asian, black, multi, other,
+         sm_freq_use, infl_expos, sub_30dayuse, vape_appeal_pretest_sum, credibility_median_rescale) %>%
+  distinct(ResponseId, .keep_all = TRUE)
+
+baseline_covars <- data_susceptibilty %>%
+  select(ResponseId, suscept_total, Condition, Sex, Ethnicity, Age, white, asian, black, multi, other,
+         sm_freq_use, infl_expos, cigcan_30dayuse, suscept_pretest, credibility_median_rescale) %>%
+  distinct(ResponseId, .keep_all = TRUE)
+
+# 3) Join + counts
+comp_id <- baseline_covars %>%
+  left_join(miss_by_id, by = "ResponseId")
+
+table(comp_id$missing_group)        # should give "complete" (included) and "missing" (excluded) - a var indicated complete or missing status
+table(comp_id$included_in_clmm)     # TRUE/FALSE version
+
+
+# Examples: Sex, Ethnicity: chi-square
+chisq.test(table(comp_id$missing_group, comp_id$Sex))
+chisq.test(table(comp_id$missing_group, comp_id$Ethnicity))
+
+
+#Supplementary table 6
+library(mice)
+
+###harm perception
+# ---- variables (add credibility if you want it imputed) ----
+vars <- c("ResponseId","harm_score_factor","Condition","Sex","Ethnicity","Age",
+          "white","asian","black","multi","other",
+          "sm_freq_use","infl_expos","sub_30dayuse","harm_pretest_binary",
+          "credibility_median_rescale")  # optional but OK to include
+
+dat <- data_harm[, vars]
+
+# ---- methods ----
+meth <- make.method(dat)
+
+meth["ResponseId"]       <- ""   # don't impute ID
+meth["Condition"]       <- ""   # randomized; do not impute
+meth["harm_score_factor"]<- ""   # outcome; do not impute (leave missing as-is)
+
+# Only these have missingness (per you), but setting explicitly is fine:
+meth["Sex"]                 <- "logreg"    # if binary; else use "polyreg"
+meth["Ethnicity"]           <- "logreg"    # if binary; else use "polyreg"
+meth["sm_freq_use"]         <- "polyreg"   # 3+ categories (unordered)
+meth["harm_pretest_binary"] <- "logreg"    # binary
+
+# credibility is continuous -> PMM is appropriate
+meth["credibility_median_rescale"] <- "pmm"
+
+# ---- predictor matrix ----
+pred <- make.predictorMatrix(dat)
+
+# don't use / predict IDs
+pred[, "ResponseId"] <- 0
+pred["ResponseId", ] <- 0
+
+# don't let the outcome be used to impute covariates (avoids outcome-informed imputation)
+pred[, "harm_score_factor"] <- 0
+
+# also don't impute the outcome (already meth["harm_score_factor"] <- "")
+pred["harm_score_factor", ] <- 0
+
+
+# ---- run imputation ---- main effect harm
+imp <- mice(dat,
+            m = 20, maxit = 50, seed = 500,
+            method = meth, predictorMatrix = pred)
+
+# quick check
+imp
+
+
+# ---- run imputation ---- interaction effect harm
+imp2 <- mice(dat,
+            m = 20, maxit = 50, seed = 501,
+            method = meth, predictorMatrix = pred)
+
+# quick check
+imp2
+
+data_list <- complete(imp, "all")
+
+##main effect
+fits <- lapply(data_list, function(d){
+  clmm(harm_score_factor ~ Condition + Sex + Ethnicity + Age +
+         white + asian + black + multi + other +
+         sm_freq_use + infl_expos + sub_30dayuse + harm_pretest_binary +
+         (1|ResponseId),
+       data=d, link="logit", Hess=TRUE,
+       control=clmm.control(method="nlminb", maxIter=5000))
+})#2 removed, mean_sd median_sd   sd_of_sd   min_sd   max_sd
+            # 3.332918  3.339762 0.02307806 3.247852 3.355417
+
+##interaction effect
+fits2 <- lapply(data_list, function(d){
+  clmm(harm_score_factor ~ Condition*credibility_median_rescale + Sex + Ethnicity + Age +
+         white + asian + black + multi + other +
+         sm_freq_use + infl_expos + sub_30dayuse + harm_pretest_binary +
+         (1|ResponseId),
+       data=d, link="logit", Hess=TRUE,
+       control=clmm.control(method="nlminb", maxIter=5000))
+})
+
+
+# Extract only Condition rows from each fit
+extract_cond <- function(m){
+  s <- summary(m)
+  tab <- as.data.frame(s$coefficients)
+  tab$term <- rownames(tab)
+  tab <- tab[grepl("credibility", tab$term), c("term","Estimate","Std. Error")]
+  rownames(tab) <- NULL
+  tab
+}
+
+est_list <- lapply(fits, extract_cond)#replaced with fits2 for interaction effects
+
+# Note: ordinal mixed models (CLMMs) adjusted for the corresponding baseline outcome may be unstable
+# in some imputed datasets because the baseline harm/appeal perception measure is highly predictive
+# of the post-exposure ordinal outcome. This can produce large SEs or
+# non-convergence. Non-converged or unstable models are excluded from pooled
+# sensitivity estimates. This reflects estimation instability from a highly predictive
+# covariate, not inconsistency in the substantive findings.
+
+# mark "good" fits: all Condition SEs are present and finite
+is_good <- sapply(est_list, function(x){
+  all(is.finite(x$Estimate)) && all(is.finite(x$`Std. Error`))
+})
+
+# additionally drop these imputations for a sensitivity test
+
+which(!is_good)   # show which produced non-invertible Hessians (no valid SEs)
+fits_use     <- fits[is_good]
+est_list_use <- est_list[is_good]
+m_use <- length(fits_use)
+message("Pooling uses m = ", m_use, " imputations (dropped: ", paste(which(!is_good), collapse=", "), ").")
+
+is_good <- sapply(est_list, function(x){
+  all(is.finite(x$Estimate)) && all(is.finite(x$`Std. Error`))
+})
+
+
+# --- 2) pool across the remaining imputations (NA-robust) ---
+terms <- sort(Reduce(union, lapply(est_list_use, `[[`, "term")))
+
+B  <- matrix(NA_real_, nrow = m_use, ncol = length(terms),
+             dimnames = list(paste0("imp", seq_len(m_use)), terms))
+SE <- B
+
+for(i in seq_along(est_list_use)){
+  xi <- est_list_use[[i]]
+  B[i,  xi$term] <- xi$Estimate
+  SE[i, xi$term] <- xi$`Std. Error`
+}
+
+m_eff <- colSums(!is.na(B) & !is.na(SE))
+
+bbar <- colMeans(B, na.rm = TRUE)
+W    <- colMeans(SE^2, na.rm = TRUE)
+Bm   <- apply(B, 2, stats::var, na.rm = TRUE)
+
+Tvar <- W + (1 + 1/m_use) * Bm
+se_p <- sqrt(Tvar)
+
+OR   <- exp(bbar)
+CI_L <- exp(bbar - 1.96*se_p)
+CI_U <- exp(bbar + 1.96*se_p)
+
+pooled_test <- data.frame(
+  term = names(bbar),
+  logOR = bbar,
+  SE = se_p,
+  OR = OR,
+  CI_L = CI_L,
+  CI_U = CI_U,
+  m_eff = m_eff,
+  m_used = m_use,
+  row.names = NULL
+)
+
+
+
+# --- add p-values + BH correction to your pooled table ---
+# (run after you create `pooled`)
+pooled_test$z <- pooled_test$logOR / pooled_test$SE
+pooled_test$p <- 2 * pnorm(abs(pooled_test$z), lower.tail = FALSE)   # two-sided Wald p
+pooled_test$p_BH <- p.adjust(pooled_test$p, method = "BH")
+
+#replace the datasets and appeal and susceptibility outcomes and relevant covariates (check the set of covariates in the code that produced Table 2), using the the code above. 
+
+
+#Supplementary table 7
+#Run models on the same datasets using codes above that created Table 2 for interaction models, just use the "credibility_median_binary" variable instead of "credibility_median_rescale"
+
+
+```
+
+
+
